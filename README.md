@@ -1,6 +1,4 @@
-# Cuddly Spoon
-
-## ARM Assembly Editor
+# Cuddly Spoon - ARM Assembly Editor
 
 ### TODO
 
