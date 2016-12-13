@@ -1,5 +1,4 @@
 .text
-.global _start
 _start:
 mov r0, #2
 bl setVFPLEN
