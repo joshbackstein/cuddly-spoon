@@ -74,14 +74,9 @@ pop {r8-r10}
 @ Multiply using SIMD 
 vmul.f32 s8, s0, s8
 
-@ Move values from vector bank to scalar bank
-vmov.f32 s0, s8
-vmov.f32 s1, s9
-vmov.f32 s2, s10
-
 @ Sum luminance value
-vadd.f32 s0, s0, s1
-vadd.f32 s0, s0, s2
+vadd.f32 s0, s8, s9
+vadd.f32 s0, s0, s10
 
 @ Return
 vpop {s8-s10}
