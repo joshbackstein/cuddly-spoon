@@ -10,25 +10,22 @@ y_10: .float 0.0722
 .text
 .global setVFPLEN
 .global loadPixelToVFP
-.global convert
+.global getLuminance
 .global loadPixelFromVFP
+.global convert
 
-@.global _start
-@_start:
-@mov r0, #2
-@bl setVFPLEN
-@
-@mov r0, #0xFF
-@mov r1, #0x0
-@mov r2, #0x0
-@bl loadPixelToVFP
-@bl convert
+@ Helper to run all commands to convert to grayscale
+@ params: r0 = R value (int)
+@         r1 = G value (int)
+@         r2 = B value (int)
+@ return: r0-r3 = grayscale (Y) value (int)
+convert:
+push {lr}
+bl loadPixelToVFP
+bl getLuminance
+bl loadPixelFromVFP
+pop {pc}
 
-@bl loadPixelFromVFP
-
-@mov r0, #0
-@bl setVFPLEN
-@bl svcExit
 
 setVFPLEN:
 @ params: r0 = len to set
@@ -54,7 +51,7 @@ vcvt.u32.f32 s0, s0
 vmov r\reg, s0
 .endr
 
-convert:
+getLuminance:
 @ params: s0 = R value (float)
 @         s1 = G value (float)
 @         s2 = B value (float)
