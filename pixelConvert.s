@@ -18,7 +18,7 @@ y_10: .float 0.0722
 @ params: r0 = R value (int)
 @         r1 = G value (int)
 @         r2 = B value (int)
-@ return: r0-r3 = grayscale (Y) value (int)
+@ return: r0-r2 = grayscale (Y) value (int)
 convert:
 push {lr}
 bl loadPixelToVFP
