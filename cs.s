@@ -29,7 +29,7 @@ filename:
   @   touch output.dat
   @   truncate -s <file size in bytes> output.dat
   @ For testing differnt file sizes, this might be nice.
-  .asciz "/home/pi/cuddly-spoon/tmp.txt"
+  .asciz "/home/pi/cuddly-spoon/test.txt"
 
 @ Struct for stat is 88 bytes long.
 .balign 4
