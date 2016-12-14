@@ -18,8 +18,15 @@
 @ Message for prompting for file name.
 .balign 4
 filenamePrompt:
-  .ascii "Please enter the name of the file you'd like to convert: "
-.set filenamePromptLength, . -filenamePrompt
+  .asciz "Please enter the name of the file you'd like to convert: "
+
+.balign 4
+fileSizeLabel:
+  .asciz "File size: "
+
+.balign 4
+endl:
+  .asciz "\n"
 
 @ Path to file to access.
 .balign 4
@@ -65,11 +72,8 @@ _start:
 
 main:
 PromptFilename:
-  mov r7, #WRITE
-  mov r0, #STDOUT
-  ldr r1, =filenamePrompt
-  mov r2, #filenamePromptLength
-  svc #0
+  ldr r0, =filenamePrompt
+  bl printString
 
 GetFilename:
   mov r7, #READ
@@ -98,6 +102,15 @@ GetFileSize:
   ldr r0, =filename
   ldr r1, =statStruct
   svc #0
+
+PrintFileSize:
+  ldr r0, =fileSizeLabel
+  bl printString
+  ldr r0, =fileSize
+  ldr r0, [r0]
+  bl printUInt
+  ldr r0, =endl
+  bl printString
 
 GetFileDescriptor:
   @ Get file descriptor.
