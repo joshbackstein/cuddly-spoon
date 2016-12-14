@@ -24,10 +24,7 @@ filenamePrompt:
 @ Path to file to access.
 .balign 4
 filename:
-  @.asciz "/home/pi/cuddly-spoon/img.bmp"
-  @.asciz "./img.bmp"
   .skip 256
-@.set filenameLength, 256
 .balign 4
 filenameLength:
   .word 256
