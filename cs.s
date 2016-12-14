@@ -9,13 +9,28 @@
 .set PROC_WRITE, 2
 .set MAP_SHARED, 1
 
+@ For reading and writing from and to the console.
+.set STDIN, 0
+.set STDOUT, 1
+
 
 .data
+@ Message for prompting for file name.
+.balign 4
+filenamePrompt:
+  .ascii "Please enter the name of the file you'd like to convert: "
+.set filenamePromptLength, . -filenamePrompt
+
 @ Path to file to access.
 .balign 4
 filename:
   @.asciz "/home/pi/cuddly-spoon/img.bmp"
-  .asciz "./img.bmp"
+  @.asciz "./img.bmp"
+  .skip 256
+@.set filenameLength, 256
+.balign 4
+filenameLength:
+  .word 256
 
 @ The file descriptor. We want this so we can close it when we're done.
 .balign 4
@@ -38,6 +53,12 @@ filePointer:
 fileEnd:
   .word 0
 
+@ Message to let us know we're done.
+.balign 4
+doneMessage:
+  .ascii "Done.\n"
+.set doneMessageLength, . -doneMessage
+
 
 .text
 .global _start
@@ -46,6 +67,34 @@ _start:
   bl main
 
 main:
+PromptFilename:
+  mov r7, #WRITE
+  mov r0, #STDOUT
+  ldr r1, =filenamePrompt
+  mov r2, #filenamePromptLength
+  svc #0
+
+GetFilename:
+  mov r7, #READ
+  mov r0, #STDIN
+  ldr r1, =filename
+  ldr r2, =filenameLength
+  ldr r2, [r2]
+  svc #0
+  @ Terminate string with null character.
+  @ The read() system call returns the length of the input in r0.
+  ldr r2, =filenameLength
+  @ Upon pressing enter, the line feed character is the last character,
+  @ so we want to trim it off of the end the string.
+  sub r0, #1
+  str r0, [r2]
+  @ Store the pointer to the end of the string in r1.
+  ldr r1, =filename
+  add r1, r0
+  @ Put a null character at the end of the string.
+  mov r0, #0
+  strb r0, [r1]
+
 GetFileSize:
   @ Get the file size.
   mov r7, #STAT
@@ -169,7 +218,15 @@ CloseFile:
   ldr r0, [r0]
   svc #0
 
+ShowDoneMessage:
+  mov r7, #WRITE
+  mov r0, #STDOUT
+  ldr r1, =doneMessage
+  mov r2, #doneMessageLength
+  svc #0
+
 exit:
   pop {lr}
 	mov r7, #EXIT
+  mov r0, #0
 	svc #0
