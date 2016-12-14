@@ -1,35 +1,26 @@
-.set STDOUT, 1
+@ Include system calls.
+.include "syscalls.asmh"
 
-@ For getting the file size.
-.set STAT, 106
+@ For opening and closing a file descriptor for the file.
+.set O_RDWR, 2
 
-.set EXIT, 1
-.set WRITE, 4
-.set MMAP2, 192
-.set MUNMAP, 91
-
+@ For mapping the file to memory.
 .set PROC_READ, 1
 .set PROC_WRITE, 2
-
-.set MAP_PRIVATE, 2
-.set MAP_ANONYMOUS, 32
+.set MAP_SHARED, 1
 
 
 .data
-.balign 4
-pointer:
-	.word 0
-.balign 4
-length:
-	.word 4096
+@ Path to file to access.
 .balign 4
 filename:
-  @.asciz "/home/pi/cuddly-spoon/output.dat"
-  @ output.dat can be created by running:
-  @   touch output.dat
-  @   truncate -s <file size in bytes> output.dat
-  @ For testing differnt file sizes, this might be nice.
-  .asciz "/home/pi/cuddly-spoon/test.txt"
+  @.asciz "/home/pi/cuddly-spoon/img.bmp"
+  .asciz "./img.bmp"
+
+@ The file descriptor. We want this so we can close it when we're done.
+.balign 4
+fileDescriptor:
+  .word 0
 
 @ Struct for stat is 88 bytes long.
 .balign 4
@@ -37,6 +28,15 @@ statStruct:
   .skip 88
 @ Reference the file size within the struct.
 .set fileSize, statStruct+20
+
+@ Pointer to the file in memory.
+.balign 4
+filePointer:
+	.word 0
+@ Pointer to the first byte past the end of the file.
+.balign 4
+fileEnd:
+  .word 0
 
 
 .text
@@ -46,57 +46,130 @@ _start:
   bl main
 
 main:
+GetFileSize:
   @ Get the file size.
   mov r7, #STAT
   ldr r0, =filename
   ldr r1, =statStruct
   svc #0
-  @ Store it in r4.
-  @ldr r4, =statStruct + 20
-  ldr r4, =fileSize
-  ldr r4, [r4]
 
+GetFileDescriptor:
+  @ Get file descriptor.
+  mov r7, #OPEN
+  ldr r0, =filename
+  mov r1, #(O_RDWR)
+  svc #0
+  @ Store it in memory.
+  ldr r1, =fileDescriptor
+  str r0, [r1]
+
+MapFileToMemory:
   @ Map the file to memory.
   mov r7, #MMAP2
-  /*
-	mov r7, #MMAP2
-	mov r0, #0
-	mov r1, #4096
-	mov r2, #(PROC_READ | PROC_WRITE)
-	mov r3, #(MAP_PRIVATE | MAP_ANONYMOUS)
-	mov r4, #-1
-	mov r5, #0
-	svc #0
-	ldr r1, =pointer
-	str r0, [r1]
+  @ Fill in arguments.
+  @ addr
+  mov r0, #0
+  @ length
+  ldr r1, =fileSize
+  ldr r1, [r1]
+  @ memory protection
+  mov r2, #(PROC_READ | PROC_WRITE)
+  @ mapping options and flags
+  mov r3, #(MAP_SHARED)
+  @ file descriptor
+  ldr r4, =fileDescriptor
+  ldr r4, [r4]
+  @ offset - must be a multiple of the page size
+  mov r5, #0
+  svc #0
+  @ Store pointer to memory where file is mapped.
+  ldr r1, =filePointer
+  str r0, [r1]
+  @ Store pointer to first byte past the end of the file.
+  ldr r1, =fileSize
+  ldr r1, [r1]
+  add r0, r1
+  ldr r1, =fileEnd
+  str r0, [r1]
 
-	mov r4, r0
-  ldr r0, [r1]
+FindOffset:
+  @ Get pointer to the beginning of the bitmap array.
+  ldr r5, =filePointer
+  ldr r5, [r5]
+  @ 0xA contains the offset for where the bitmap array begins. 
+  add r0, r5, #0xA
+  ldr r0, [r0]
+  @ Move our pointer to the beginning of the bitmap array.
+  add r5, r0
+  @ Get the first byte past the end of the file so we know
+  @ how far to go.
+  ldr r6, =fileEnd
+  ldr r6, [r6]
 
+LoopSetup:
+  @ Set length in FPSCR to allow vector math on 3 registers.
+  @ FPSCR length counts from 0 up, where 0 == 1.
+  mov r0, #2
+  bl setVFPLEN
 
-.Loop:
-	strb r0, [r4], #1
-	add r0, r0, #1
+LoopRun:
+  @ Start looping through the values. They are stored as BGR.
+  @ Load blue.
+  ldrb r2, [r5]
+  @ Load green.
+  ldrb r1, [r5, #1]
+  @ Load red.
+  ldrb r0, [r5, #2]
 
-.Loop_condition:
-	cmp r0, #('z' + 1)
-	blt .Loop
+  @ Convert to grayscale.
+  bl convert
+  strb r0, [r5], #1
+  strb r0, [r5], #1
+  strb r0, [r5], #1
 
-	mov r0, #STDOUT
-	ldr r1, =pointer
-	ldr r1, [r1]
-	sub r2, r4, r1
-	mov r7, #WRITE
-	svc #0
+  @ Have we reached the end of the file?
+  cmp r5, r6
+  @ If the address stored in r5 is less than the address in r6,
+  @ we haven't reached the end of the file yet.
+  blt LoopRun
+  
+LoopTeardown:
+  @ Put length in FPSCR back to length of 1.
+  @ FPSCR length counts from 0 up, where 0 == 1.
+  mov r0, #0
+  bl setVFPLEN
 
-	mov r7, #MUNMAP
-	ldr r0, =pointer
-	ldr r0, [r0]
-	ldr r1, =length
-	ldr r1, [r1]
-	svc #0
-  */
+WriteChangesToFile:
+  @ Write any changes to the file.
+  mov r7, #WRITE
+  @ file descriptor
+  ldr r0, =fileDescriptor
+  ldr r0, [r0]
+  @ file pointer
+  ldr r1, =filePointer
+  ldr r1, [r1]
+  @ length
+  ldr r2, =fileSize
+  ldr r2, [r2]
+  svc #0
 
+UnmapFileFromMemory:
+  @ Unmap file from memory.
+  mov r7, #MUNMAP
+  ldr r0, =filePointer
+  ldr r0, [r0]
+  ldr r1, =fileSize
+  ldr r1, [r1]
+  svc #0
+
+CloseFile:
+  @ Close the file descriptor.
+  mov r7, #CLOSE
+  ldr r0, =fileDescriptor
+  ldr r0, [r0]
+  svc #0
+
+exit:
   pop {lr}
 	mov r7, #EXIT
 	svc #0

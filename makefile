@@ -3,7 +3,7 @@ AS_FLAGS = -mfpu=vfpv4
 CC = gcc
 CC_FLAGS = -w -g
 
-EXEC = grayscale 
+EXEC = cuddly-spoon 
 SOURCES := $(wildcard *.s)
 OBJECTS = $(SOURCES:.s=.o)
 
